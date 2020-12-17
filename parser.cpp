@@ -6,7 +6,8 @@
 int main()
 {
     Parser p;
-    std::string e("1/(exp((x-3)/2)+exp((3-x)/2))");
+//    std::string e("1/(exp((x-3)/2)+exp((3-x)/2))");
+    std::string e("(x-4)^2");
 
 //    p.ParseExpr("sin(pi/4)-sqrt(2)/2");
 //    p.ParseExpr("10*10+15");
@@ -23,7 +24,7 @@ int main()
     std::cout << "\n---------Program---------\n";
     p.PrintPrg();
     std::cout << "\n-----------Eval----------\n";
-    std::cout << p.Eval(4) << std::endl;
+    std::cout << p.Eval() << std::endl;
     std::cout << p.Stack.size() << " elements left in the stack\n\n"; 
 
 // timed run
@@ -47,7 +48,12 @@ Parser::Parser()
     AddOperation("-", &Parser::Sub, "SUB", 5);
     AddOperation("*", &Parser::Mul, "MUL", 4);
     AddOperation("/", &Parser::Div, "DIV", 4);
+    AddOperation("^", &Parser::Pow, "POW", 3);
 // unary minus?
+
+    pow2 = AddFunction("pow2", &Parser::Pow2, "POW2");
+    pow3 = AddFunction("pow3", &Parser::Pow3, "POW3");
+
 
     AddFunction("sqrt", &Parser::Sqrt, "SQRT");
     AddFunction("exp", &Parser::Exp, "EXP");
@@ -234,14 +240,25 @@ bool Parser::ShuntingYard()
             return false;
         } 
 
-        if (token.type == TokNumber || token.type == TokConst) // move to command queue
-            Command.push_back(CmdReadConst*1000 + token.addr);
+        if (token.type == TokNumber || token.type == TokConst) {
+        // we have special treatment for the cases of ^2 and ^3
+        // to make them process a bit faster
+            if (!OpStack.empty() && OpStack.top().string == "^" && Const[token.addr] == 2) { // ^2
+                Command.push_back(CmdFunc*1000 + pow2);
+                OpStack.pop();
+            } else if (!OpStack.empty() && OpStack.top().string == "^" && Const[token.addr] == 3) { // ^3
+                Command.push_back(CmdFunc*1000 + pow3);
+                OpStack.pop();
+            } else { // in all other cases
+                Command.push_back(CmdReadConst*1000 + token.addr); // move to command queue
+            }
+        }
 
-        else if (token.type == TokVar) // move to command queue
-            Command.push_back(CmdReadVar*1000 + token.addr);
+        else if (token.type == TokVar) 
+            Command.push_back(CmdReadVar*1000 + token.addr); // move to command queue
 
-        else if (token.type == TokFunc) // push to Op stack
-            OpStack.push(token);
+        else if (token.type == TokFunc) 
+            OpStack.push(token); // push to Op stack
 
         else if (token.type == TokOper) {
             int rank = OperRank[token.addr];

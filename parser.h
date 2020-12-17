@@ -65,6 +65,9 @@ public:
     void Mul() {double tmp = Stack.top(); Stack.pop(); Stack.top() *= tmp;}
     void Div() {double tmp = Stack.top(); Stack.pop(); Stack.top() /= tmp;}
     void Neg() {Stack.top() = -Stack.top();}
+    void Pow() {double tmp = Stack.top(); Stack.pop(); Stack.top() = pow(Stack.top(), tmp);}
+    void Pow2() {double tmp = Stack.top(); Stack.top() = tmp*tmp;}
+    void Pow3() {double tmp = Stack.top(); Stack.top() = tmp*tmp*tmp;}
     void Sqrt() {Stack.top() = sqrt(Stack.top());}
     void Exp() {Stack.top() = exp(Stack.top());}
     void Log() {Stack.top() = log(Stack.top());}
@@ -118,5 +121,6 @@ private:
     int TokPos = 0; // current token position in Expr
     int CmdPos = 0;
     std::string ErrorString;
+    int pow2, pow3; // positions of fast square and cube functions
 };
 
