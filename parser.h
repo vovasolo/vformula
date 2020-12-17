@@ -26,6 +26,7 @@ enum TokenType {
     TokOper,
     TokOpen,
     TokClose,
+    TokComma,
     TokEnd,
     TokError
 };
@@ -34,6 +35,7 @@ struct Token {
     TokenType type;
     std::string string;
     int addr;
+    int args;
     Token(TokenType t, std::string s, int a=0) : type(t), string(s), addr(a) {;}
 };
 
@@ -79,11 +81,22 @@ public:
     void Cosh() {Stack.top() = cosh(Stack.top());}
     void Tanh() {Stack.top() = tanh(Stack.top());}
 
+    void Int() {double t; modf(Stack.top(), &t); Stack.top() = t;}
+    void Frac() {double t; Stack.top() = modf(Stack.top(), &t);}
+
+    void Max() {double tmp = Stack.top(); Stack.pop(); Stack.top() = std::max(tmp, Stack.top());}
+    void Min() {double tmp = Stack.top(); Stack.pop(); Stack.top() = std::min(tmp, Stack.top());}
+
+    void Gaus();
+    void Pol2();
+    void Pol3();
+
 // Parser memory
     std::vector <std::string> ConstName; // names of constants: position corresponds to position in Const
     std::vector <std::string> VarName;   // names of variables: position corresponds to position in Var
     std::vector <std::string> FuncName;  // names of functions: position corresponds to position in Func
     std::vector <std::string> FuncMnem;  // function mnemonics: position corresponds to position in Func
+    std::vector <int> FuncArgs; // number of arguments to take, position corresponds to position in Func
     std::vector <std::string> OperName;  // names of operations: position corresponds to position in Oper
     std::vector <std::string> OperMnem;  // operation mnemonics: position corresponds to position in Oper
     std::vector <int> OperRank;  // operation priorities (less is higher): position corresponds to position in Oper
@@ -95,7 +108,7 @@ public:
     bool FindSymbol(std::vector <std::string> &namevec, std::string symbol, int *addr);
 
     int AddOperation(std::string name, FuncPtr ptr, std::string mnem, int rank);
-    int AddFunction(std::string name, FuncPtr ptr, std::string mnem);
+    int AddFunction(std::string name, FuncPtr ptr, std::string mnem, int args=1);
     int AddConstant(std::string name, double val);
     int AddVariable(std::string name, double val);
 

@@ -7,7 +7,7 @@ int main()
 {
     Parser p;
 //    std::string e("1/(exp((x-3)/2)+exp((3-x)/2))");
-    std::string e("(x-4)^2");
+    std::string e("pol2(pi,3,4,5)");
 
 //    p.ParseExpr("sin(pi/4)-sqrt(2)/2");
 //    p.ParseExpr("10*10+15");
@@ -24,7 +24,7 @@ int main()
     std::cout << "\n---------Program---------\n";
     p.PrintPrg();
     std::cout << "\n-----------Eval----------\n";
-    std::cout << p.Eval() << std::endl;
+    std::cout << p.Eval(6) << std::endl;
     std::cout << p.Stack.size() << " elements left in the stack\n\n"; 
 
 // timed run
@@ -33,7 +33,7 @@ int main()
 
 //  Code to be timed
     for (int i=0; i<100000; i++)
-        p.Eval();
+        p.Eval(6);
 
     auto end = std::chrono::high_resolution_clock::now();
     auto diff = end - start;
@@ -55,6 +55,7 @@ Parser::Parser()
     pow3 = AddFunction("pow3", &Parser::Pow3, "POW3");
 
 
+
     AddFunction("sqrt", &Parser::Sqrt, "SQRT");
     AddFunction("exp", &Parser::Exp, "EXP");
     AddFunction("log", &Parser::Log, "LOG");    
@@ -66,11 +67,42 @@ Parser::Parser()
     AddFunction("cosh", &Parser::Cosh, "COSH");
     AddFunction("tanh", &Parser::Tanh, "TANH");
 
+    AddFunction("int", &Parser::Int, "INT");
+    AddFunction("frac", &Parser::Frac, "FRAC");
+
+    AddFunction("max", &Parser::Max, "MAX", 2);
+    AddFunction("min", &Parser::Min, "MIN", 2);
+
+    AddFunction("gaus", &Parser::Gaus, "GAUS", 3);
+    AddFunction("pol2", &Parser::Pol2, "POL2", 4);
+
     AddConstant("pi", M_PI);
 
     AddVariable("x", 0.);
     AddVariable("y", 0.);
     AddVariable("z", 0.);
+}
+
+void Parser::Gaus()
+{
+    double sigma = Stack.top(); 
+    Stack.pop();
+    double x0 = Stack.top(); 
+    Stack.pop();
+    double t = (Stack.top()-x0)/sigma;
+    Stack.top() = 1/(sigma*sqrt(M_PI*2))*exp(-0.5*t*t);
+}
+
+void Parser::Pol2()
+{
+    double a0 = Stack.top(); 
+    Stack.pop();
+    double a1 = Stack.top(); 
+    Stack.pop();
+    double a2 = Stack.top();
+    Stack.pop();
+    double t = Stack.top();
+    Stack.top() = (a2*t+a1)*t+a0;
 }
 
 double Parser::Eval(double x)
@@ -169,7 +201,7 @@ Token Parser::GetNextToken()
 
     int ch0 = Expr[TokPos]; // fetch the character at the current token position
 
-// parenthses
+// parentheses and commas
     if (ch0 == '(') {
         TokPos++;
         return Token(TokOpen, "(");
@@ -177,6 +209,10 @@ Token Parser::GetNextToken()
     if (ch0 == ')') {
         TokPos++;
         return Token(TokClose, ")");
+    }
+    if (ch0 == ',') {
+        TokPos++;
+        return Token(TokComma, ",");
     }
 
 // number
@@ -257,8 +293,10 @@ bool Parser::ShuntingYard()
         else if (token.type == TokVar) 
             Command.push_back(CmdReadVar*1000 + token.addr); // move to command queue
 
-        else if (token.type == TokFunc) 
+        else if (token.type == TokFunc) {
+            token.args = FuncArgs[token.addr]; // fill correct number of args (should be done in tokenizer?)
             OpStack.push(token); // push to Op stack
+        }
 
         else if (token.type == TokOper) {
             int rank = OperRank[token.addr];
@@ -277,17 +315,21 @@ bool Parser::ShuntingYard()
         else if (token.type == TokOpen)
             OpStack.push(token);
 
-        else if (token.type == TokClose) {
+        else if (token.type == TokClose || token.type == TokComma) {
             while (!OpStack.empty() && OpStack.top().type != TokOpen) {
                 Command.push_back(CmdOper*1000 + OpStack.top().addr);
                 OpStack.pop();
             }
             if (!OpStack.empty() && OpStack.top().type == TokOpen)
                 OpStack.pop();
-            if (!OpStack.empty() && OpStack.top().type == TokFunc) {
-                Command.push_back(CmdFunc*1000 + OpStack.top().addr);
-                OpStack.pop();
+            if (!OpStack.empty() && OpStack.top().type == TokFunc)
+                if (--(OpStack.top().args) == 0) {
+                    Command.push_back(CmdFunc*1000 + OpStack.top().addr);
+                    OpStack.pop();
             }
+
+            if(token.type == TokComma) // "," is equivalent to ")("
+                OpStack.push(Token(TokOpen, "("));
         }
 
         else if (token.type == TokEnd)
@@ -323,10 +365,11 @@ int Parser::AddOperation(std::string name, FuncPtr ptr, std::string mnem, int ra
     return Oper.size()-1;
 }
 
-int Parser::AddFunction(std::string name, FuncPtr ptr, std::string mnem) 
+int Parser::AddFunction(std::string name, FuncPtr ptr, std::string mnem, int args) 
 {
     FuncName.push_back(name);
     FuncMnem.push_back(mnem);
+    FuncArgs.push_back(args);
     Func.push_back(ptr);
     return Func.size()-1;
 }
