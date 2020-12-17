@@ -1,7 +1,5 @@
 #include <stack>
 #include <vector>
-#include <set>
-#include <map>
 #include <string>
 #include <cmath>
 
@@ -91,15 +89,24 @@ public:
     Parser();
     ~Parser() {;}
 
+    bool FindSymbol(std::vector <std::string> &namevec, std::string symbol, int *addr);
+
     int AddOperation(std::string name, FuncPtr ptr, std::string mnem, int rank);
     int AddFunction(std::string name, FuncPtr ptr, std::string mnem);
     int AddConstant(std::string name, double val);
     int AddVariable(std::string name, double val);
 
+    double GetConstant(std::string name);
+    double GetVariable(std::string name);
+    bool SetConstant(std::string name, double val);
+    bool SetVariable(std::string name, double val);
+
     bool ParseExpr(std::string expr);
     Token GetNextToken();
     bool ShuntingYard();
+
     void PrintMap();
+    void PrintPrg();
 
     double Eval();
     double Eval(double x);

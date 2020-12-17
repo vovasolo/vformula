@@ -6,30 +6,37 @@
 int main()
 {
     Parser p;
+    std::string e("1/(exp((x-3)/2)+exp((3-x)/2))");
 
 //    p.ParseExpr("sin(pi/4)-sqrt(2)/2");
 //    p.ParseExpr("10*10+15");
 //    p.ParseExpr("1");
 //    p.ParseExpr("exp(0-(x-3)*(x-3))/2");
 //    p.ParseExpr("1/(exp((x-3)/2)+exp((3-x)/2))");
-    p.ParseExpr("0.5/cosh((x-3)/2)");
-    std::cout << "\n---------------------\n";
+//    p.ParseExpr("0.5/cosh((x-3)/2)");
+
+    p.ParseExpr(e);
+    std::cout << "\n--------Expression-------\n";
+    std::cout << e << std::endl;  
+    std::cout << "\n----------Map------------\n";
     p.PrintMap();
-    std::cout << "\n---------Eval--------\n";
+    std::cout << "\n---------Program---------\n";
+    p.PrintPrg();
+    std::cout << "\n-----------Eval----------\n";
     std::cout << p.Eval(4) << std::endl;
     std::cout << p.Stack.size() << " elements left in the stack\n\n"; 
 
 // timed run
     std::cout << "Timed run\n";    
-    auto start = std::chrono::steady_clock::now();
+    auto start = std::chrono::high_resolution_clock::now();
 
 //  Code to be timed
-    for (int i=0; i<10000; i++)
+    for (int i=0; i<100000; i++)
         p.Eval();
 
-    auto end = std::chrono::steady_clock::now();
+    auto end = std::chrono::high_resolution_clock::now();
     auto diff = end - start;
-    std::cout << std::chrono::duration <double, std::nano> (diff).count()/10000 << " ns/eval" << std::endl;
+    std::cout << std::chrono::duration <double, std::nano> (diff).count()/100000 << " ns/eval" << std::endl;
     
     return 0;
 }
@@ -106,7 +113,10 @@ bool Parser::ParseExpr(std::string expr)
         std::cout << ErrorString << std::endl;
         return false;
     }
+}
 
+void Parser::PrintPrg()
+{
     for (int cmd : Command) {
         int c = cmd/1000;
         int i = cmd%1000;
@@ -115,10 +125,14 @@ bool Parser::ParseExpr(std::string expr)
             std::cout << cmd << "\tOpr\t" << OperMnem[i] << std::endl;
         else if (c == CmdFunc)
             std::cout << cmd << "\tFun\t" << FuncMnem[i] << std::endl;
-        else if (c == CmdReadConst)
-            std::cout << cmd << "\tCon\t" << ConstName[i] << " : " << Const[i] << std::endl;
+        else if (c == CmdReadConst) {
+            if (ConstName[i].size() == 0)
+                std::cout << cmd << "\tCon\t" << Const[i] << std::endl;
+            else
+                std::cout << cmd << "\tCon\t" << ConstName[i] << "=" << Const[i] << std::endl;
+        }
         else if (c == CmdReadVar)
-            std::cout << cmd << "\tVar\t" << VarName[i] << " : " << Var[i] << std::endl;                        
+            std::cout << cmd << "\tVar\t" << VarName[i] << "=" << Var[i] << std::endl;                        
     }
 }
 
@@ -181,23 +195,19 @@ Token Parser::GetNextToken()
         TokPos += len;
 
     // now check if it is a known symbol       
-        std::vector <std::string> :: iterator itr;
+        int addr;
+        if (FindSymbol(ConstName, symbol, &addr))
+            return Token(TokConst, symbol, addr);
 
-        itr = std::find(ConstName.begin(), ConstName.end(), symbol);
-        if (itr != ConstName.end())
-            return Token(TokConst, symbol, itr-ConstName.begin());
+        if (FindSymbol(VarName, symbol, &addr))
+            return Token(TokVar, symbol, addr);
 
-        itr = std::find(VarName.begin(), VarName.end(), symbol);
-        if (itr != VarName.end())
-            return Token(TokVar, symbol, itr-VarName.begin());
-
-        itr = std::find(FuncName.begin(), FuncName.end(), symbol);
-        if (itr != FuncName.end()) {
+        if (FindSymbol(FuncName, symbol, &addr)) {
             if (Expr[TokPos] != '(') {
                 TokPos -= len;
                 return Token(TokError, std::string("Known function ")+symbol+" without ()");
             }
-            return Token(TokFunc, symbol, itr-FuncName.begin());
+            return Token(TokFunc, symbol, addr);
         }
 
         TokPos -= len;
@@ -275,6 +285,17 @@ bool Parser::ShuntingYard()
     return true;
 }
 
+bool Parser::FindSymbol(std::vector <std::string> &namevec, std::string symbol, int *addr)
+{
+    std::vector <std::string> :: iterator itr;
+
+    itr = std::find(namevec.begin(), namevec.end(), symbol);
+    if (itr == namevec.end()) 
+        return false;
+
+    *addr = itr-namevec.begin();
+    return true;
+}
 
 int Parser::AddOperation(std::string name, FuncPtr ptr, std::string mnem, int rank)
 {
@@ -295,6 +316,16 @@ int Parser::AddFunction(std::string name, FuncPtr ptr, std::string mnem)
 
 int Parser::AddConstant(std::string name, double val)
 {
+    int addr;
+    if (name.size() == 0) { // if automatically generated (empty name)
+        std::vector <double> :: iterator itr = std::find(Const.begin(), Const.end(), val);
+        if (itr != Const.end()) // if a constant with the same value already exists
+            return itr-Const.begin(); // use it
+    } else if (FindSymbol(ConstName, name, &addr)) { // if the constant with this name already exists - update it
+        Var[addr] = val;
+        return addr;
+    }
+// otherwise create a new one      
     ConstName.push_back(name);
     Const.push_back(val);
     return Const.size()-1;
@@ -302,7 +333,44 @@ int Parser::AddConstant(std::string name, double val)
 
 int Parser::AddVariable(std::string name, double val) 
 {
+// if the variable with this name already exists - update it   
+    int addr;
+    if (FindSymbol(VarName, name, &addr)) { 
+        Var[addr] = val;
+        return addr;
+    }
+// otherwise create a new one
     VarName.push_back(name);
     Var.push_back(val);
     return Var.size()-1;
+}
+
+double Parser::GetConstant(std::string name)
+{
+    int addr;
+    return FindSymbol(ConstName, name, &addr) ? Const[addr] : nan("");
+}
+
+double Parser::GetVariable(std::string name)
+{
+    int addr;
+    return FindSymbol(VarName, name, &addr) ? Var[addr] : nan("");    
+}
+
+bool Parser::SetConstant(std::string name, double val)
+{
+    int addr;
+    bool status = FindSymbol(ConstName, name, &addr);
+    if (status)
+        Const[addr] = val;
+    return status;     
+}
+
+bool Parser::SetVariable(std::string name, double val)
+{
+    int addr;
+    bool status = FindSymbol(VarName, name, &addr);
+    if (status)
+        Var[addr] = val;
+    return status;    
 }
