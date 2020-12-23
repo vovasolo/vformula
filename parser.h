@@ -2,11 +2,11 @@
 #include <vector>
 #include <string>
 #include <cmath>
+#include <iostream>
 
 /*
 The provided expression is translated first into series of commands in postfix order for a simple stack-based
-evaluator. The commands are integers composed as:
-CmdType*1000 + addr
+evaluator.
 
 Possible values of CmdType and associated actions:
 0  CmdNop: no operation (for debugging)
@@ -19,11 +19,13 @@ Possible values of CmdType and associated actions:
 */
 
 enum TokenType {
-    TokNumber = 0,
+    TokNull = 0,
+    TokNumber,
     TokConst,
     TokVar,
     TokFunc,
     TokOper,
+    TokUnary,
     TokOpen,
     TokClose,
     TokComma,
@@ -39,10 +41,34 @@ struct Token {
     Token(TokenType t, std::string s, int a=0) : type(t), string(s), addr(a) {;}
 };
 
-class Parser
+struct MyStack {
+    double s[256];
+    double *ptr = s;
+    inline double &top() {return *ptr;}
+    inline void pop() {ptr--;}
+    inline void push(double val) {*(++ptr)=val;}
+    inline int size() {return ptr-s;} 
+};
+/*
+struct MyStack {
+    double s[256];
+    double *ptr = s+255;
+    inline double &top() {return *ptr;}
+    inline void pop() {ptr++;}
+    inline void push(double val) {*(--ptr)=val;}
+    inline int size() {return s-ptr+255;} 
+};
+*/
+struct Cmdaddr{
+    short cmd;
+    short addr;
+    Cmdaddr(int c, int a) : cmd(c), addr(a) {;} 
+}; 
+
+class VFormula
 {
 public: 
-    typedef void (Parser::*FuncPtr)();
+    typedef void (VFormula::*FuncPtr)();
 
     enum CmdType {
         CmdNop = 0,
@@ -55,31 +81,42 @@ public:
     };
 
 // Evaluator memory
-    std::vector <int> Command;   // expression translated to commands in postfix order
+//    std::vector <int> Command;   // expression translated to commands in postfix order
+    std::vector <Cmdaddr> Command; //+++
     std::vector <double> Const;  // vector of constants
     std::vector <double> Var;    // vector of variables
     std::vector <FuncPtr> Func;  // vector of function pointers 
     std::vector <FuncPtr> Oper;  // vector of operator pointers 
     std::stack <double> Stack;   // evaluator stack
+//    MyStack Stack;
 
     void Add() {double tmp = Stack.top(); Stack.pop(); Stack.top() += tmp;}
     void Sub() {double tmp = Stack.top(); Stack.pop(); Stack.top() -= tmp;}
     void Mul() {double tmp = Stack.top(); Stack.pop(); Stack.top() *= tmp;}
     void Div() {double tmp = Stack.top(); Stack.pop(); Stack.top() /= tmp;}
     void Neg() {Stack.top() = -Stack.top();}
+    void Nop() {;}
     void Pow() {double tmp = Stack.top(); Stack.pop(); Stack.top() = pow(Stack.top(), tmp);}
     void Pow2() {double tmp = Stack.top(); Stack.top() = tmp*tmp;}
     void Pow3() {double tmp = Stack.top(); Stack.top() = tmp*tmp*tmp;}
+    void Abs() {Stack.top() = abs(Stack.top());}
     void Sqrt() {Stack.top() = sqrt(Stack.top());}
     void Exp() {Stack.top() = exp(Stack.top());}
     void Log() {Stack.top() = log(Stack.top());}
     void Sin() {Stack.top() = sin(Stack.top());}
     void Cos() {Stack.top() = cos(Stack.top());}
     void Tan() {Stack.top() = tan(Stack.top());}
+    void Asin() {Stack.top() = asin(Stack.top());}
+    void Acos() {Stack.top() = acos(Stack.top());}
+    void Atan() {Stack.top() = atan(Stack.top());}
+    void Atan2() {double x = Stack.top(); Stack.pop(); Stack.top() = atan2(Stack.top(), x);} //atan2(y,x)
 
     void Sinh() {Stack.top() = sinh(Stack.top());}
     void Cosh() {Stack.top() = cosh(Stack.top());}
     void Tanh() {Stack.top() = tanh(Stack.top());}
+    void Asinh() {Stack.top() = asinh(Stack.top());}
+    void Acosh() {Stack.top() = acosh(Stack.top());}
+    void Atanh() {Stack.top() = atanh(Stack.top());}
 
     void Int() {double t; modf(Stack.top(), &t); Stack.top() = t;}
     void Frac() {double t; Stack.top() = modf(Stack.top(), &t);}
@@ -100,14 +137,15 @@ public:
     std::vector <std::string> OperName;  // names of operations: position corresponds to position in Oper
     std::vector <std::string> OperMnem;  // operation mnemonics: position corresponds to position in Oper
     std::vector <int> OperRank;  // operation priorities (less is higher): position corresponds to position in Oper
+    std::vector <int> OperArgs;  // number of arguments to take, position corresponds to position in Oper
     std::stack <Token> OpStack;  // parser stack
 
-    Parser();
-    ~Parser() {;}
+    VFormula();
+    virtual ~VFormula() {;}
 
     bool FindSymbol(std::vector <std::string> &namevec, std::string symbol, int *addr);
 
-    int AddOperation(std::string name, FuncPtr ptr, std::string mnem, int rank);
+    int AddOperation(std::string name, FuncPtr ptr, std::string mnem, int rank, int args=2);
     int AddFunction(std::string name, FuncPtr ptr, std::string mnem, int args=1);
     int AddConstant(std::string name, double val);
     int AddVariable(std::string name, double val);
@@ -118,22 +156,36 @@ public:
     bool SetVariable(std::string name, double val);
 
     bool ParseExpr(std::string expr);
+    bool CheckSyntax(Token token);
     Token GetNextToken();
     bool ShuntingYard();
 
-    void PrintMap();
+//    int MkCmd(int cmd, int addr) {return cmd*1000 + addr;}
+    Cmdaddr MkCmd(int cmd, int addr) {return Cmdaddr(cmd, addr);} //+++
+
+    void PrintCVMap();
+    void PrintOFMap();
     void PrintPrg();
 
+    void VFail(int pos, std::string msg);
+    bool Validate();
     double Eval();
     double Eval(double x);
+
+    std::string GetErrorString() {return ErrorString;}
 
 //    bool SetVar(std::string name, double val); // returns true if var with this name exists
 
 private:
     std::string Expr;
     int TokPos = 0; // current token position in Expr
+    Token LastToken = Token(TokNull, "");
     int CmdPos = 0;
     std::string ErrorString;
-    int pow2, pow3; // positions of fast square and cube functions
+    int pow2, pow3; // positions of the fast square and cube functions
+    int neg, nop; // position of the sign inverse and nop functions 
+    bool valid = true; // result of the code validity check
+public:    
+    int failpos; // position in the code at which validation failed
 };
 

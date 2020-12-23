@@ -1,13 +1,23 @@
 #include "parser.h"
 #include <algorithm>
 #include <iostream>
+#include <cstdio>
 #include <chrono>
 
 int main()
 {
-    Parser p;
+    VFormula p;
 //    std::string e("1/(exp((x-3)/2)+exp((3-x)/2))");
-    std::string e("pol2(pi,3,4,5)");
+    std::string e("-1+pol2(-x,2+sin(x+pi/2),-3,4)");
+//    std::string e("1+pol2(-x,2,-3,4)");
+//    std::string e("x+1+2+3+4+5+6+7+8+9+10");
+//    std::string e("1+atan2(1,1)/pi");
+//    std::string e("sin(pi/4)-sqrt(2)/2");
+//    std::string e("asin(sin(pi*0.45))/pi");
+//    std::string e("0.5/cosh((x-3)/2)");
+//    std::string e("sqrt(x^2+y^2)");
+//    std::string e("2^2.000001^3.00001-2^2^3");
+//    std::string e("2/-2/-2");
 
 //    p.ParseExpr("sin(pi/4)-sqrt(2)/2");
 //    p.ParseExpr("10*10+15");
@@ -16,13 +26,28 @@ int main()
 //    p.ParseExpr("1/(exp((x-3)/2)+exp((3-x)/2))");
 //    p.ParseExpr("0.5/cosh((x-3)/2)");
 
-    p.ParseExpr(e);
+//    std::cout << "sizeof(Cmdaddr) = " << sizeof(Cmdaddr) << std::endl;
+    
     std::cout << "\n--------Expression-------\n";
     std::cout << e << std::endl;  
+    bool status = p.ParseExpr(e);
+    if (!status) {
+        return 0;
+    }
+       
     std::cout << "\n----------Map------------\n";
-    p.PrintMap();
+    p.PrintCVMap();
     std::cout << "\n---------Program---------\n";
     p.PrintPrg();
+
+    status = p.Validate();
+    if (!status) {
+        std::cout << "Validation failed at " << p.failpos << " : " << p.GetErrorString(); 
+        return 0;
+    } else {
+        std::cout << "\nCode validation OK\n";
+    }
+
     std::cout << "\n-----------Eval----------\n";
     std::cout << p.Eval(6) << std::endl;
     std::cout << p.Stack.size() << " elements left in the stack\n\n"; 
@@ -32,49 +57,61 @@ int main()
     auto start = std::chrono::high_resolution_clock::now();
 
 //  Code to be timed
-    for (int i=0; i<100000; i++)
-        p.Eval(6);
+    double sum =  0.;
+    for (int i=0; i<10000000; i++) {
+        sum += p.Eval(6);
+    }
+    std::cout << sum << std::endl;
 
     auto end = std::chrono::high_resolution_clock::now();
     auto diff = end - start;
-    std::cout << std::chrono::duration <double, std::nano> (diff).count()/100000 << " ns/eval" << std::endl;
+    std::cout << std::chrono::duration <double, std::nano> (diff).count()/10000000 << " ns/eval" << std::endl;
     
     return 0;
 }
 
-Parser::Parser()
+VFormula::VFormula()
 {
-    AddOperation("+", &Parser::Add, "ADD", 5);
-    AddOperation("-", &Parser::Sub, "SUB", 5);
-    AddOperation("*", &Parser::Mul, "MUL", 4);
-    AddOperation("/", &Parser::Div, "DIV", 4);
-    AddOperation("^", &Parser::Pow, "POW", 3);
-// unary minus?
+    AddOperation("+", &VFormula::Add, "ADD", 5);
+    AddOperation("-", &VFormula::Sub, "SUB", 5);
+    AddOperation("*", &VFormula::Mul, "MUL", 4);
+    AddOperation("/", &VFormula::Div, "DIV", 4);
+    AddOperation("^", &VFormula::Pow, "POW", 3);
+// unary minus and plus  
+    neg = AddOperation("--", &VFormula::Neg, "NEG", 2, 1);
+    nop = AddOperation("++", &VFormula::Nop, "NOP", 2, 1);
+    
+    pow2 = AddFunction("pow2", &VFormula::Pow2, "POW2");
+    pow3 = AddFunction("pow3", &VFormula::Pow3, "POW3");
 
-    pow2 = AddFunction("pow2", &Parser::Pow2, "POW2");
-    pow3 = AddFunction("pow3", &Parser::Pow3, "POW3");
+    AddFunction("pow", &VFormula::Pow, "POW", 2);
+    AddFunction("abs", &VFormula::Exp, "ABS");
+    AddFunction("sqrt", &VFormula::Sqrt, "SQRT");
+    AddFunction("exp", &VFormula::Exp, "EXP");
+    AddFunction("log", &VFormula::Log, "LOG");    
+    AddFunction("sin", &VFormula::Sin, "SIN");
+    AddFunction("cos", &VFormula::Cos, "COS");
+    AddFunction("tan", &VFormula::Tan, "TAN");
+    AddFunction("asin", &VFormula::Asin, "ASIN");
+    AddFunction("acos", &VFormula::Acos, "ACOS");
+    AddFunction("atan", &VFormula::Atan, "ATAN");
+    AddFunction("atan2", &VFormula::Atan2, "ATAN2", 2);
 
+    AddFunction("sinh", &VFormula::Sinh, "SINH");
+    AddFunction("cosh", &VFormula::Cosh, "COSH");
+    AddFunction("tanh", &VFormula::Tanh, "TANH");
+    AddFunction("asinh", &VFormula::Asinh, "ASINH");
+    AddFunction("acosh", &VFormula::Acosh, "ACOSH");
+    AddFunction("atanh", &VFormula::Atanh, "ATANH");
 
+    AddFunction("int", &VFormula::Int, "INT");
+    AddFunction("frac", &VFormula::Frac, "FRAC");
 
-    AddFunction("sqrt", &Parser::Sqrt, "SQRT");
-    AddFunction("exp", &Parser::Exp, "EXP");
-    AddFunction("log", &Parser::Log, "LOG");    
-    AddFunction("sin", &Parser::Sin, "SIN");
-    AddFunction("cos", &Parser::Cos, "COS");
-    AddFunction("tan", &Parser::Tan, "TAN");
+    AddFunction("max", &VFormula::Max, "MAX", 2);
+    AddFunction("min", &VFormula::Min, "MIN", 2);
 
-    AddFunction("sinh", &Parser::Sinh, "SINH");
-    AddFunction("cosh", &Parser::Cosh, "COSH");
-    AddFunction("tanh", &Parser::Tanh, "TANH");
-
-    AddFunction("int", &Parser::Int, "INT");
-    AddFunction("frac", &Parser::Frac, "FRAC");
-
-    AddFunction("max", &Parser::Max, "MAX", 2);
-    AddFunction("min", &Parser::Min, "MIN", 2);
-
-    AddFunction("gaus", &Parser::Gaus, "GAUS", 3);
-    AddFunction("pol2", &Parser::Pol2, "POL2", 4);
+    AddFunction("gaus", &VFormula::Gaus, "GAUS", 3);
+    AddFunction("pol2", &VFormula::Pol2, "POL2", 4);
 
     AddConstant("pi", M_PI);
 
@@ -83,7 +120,7 @@ Parser::Parser()
     AddVariable("z", 0.);
 }
 
-void Parser::Gaus()
+void VFormula::Gaus()
 {
     double sigma = Stack.top(); 
     Stack.pop();
@@ -93,7 +130,7 @@ void Parser::Gaus()
     Stack.top() = 1/(sigma*sqrt(M_PI*2))*exp(-0.5*t*t);
 }
 
-void Parser::Pol2()
+void VFormula::Pol2()
 {
     double a0 = Stack.top(); 
     Stack.pop();
@@ -105,20 +142,21 @@ void Parser::Pol2()
     Stack.top() = (a2*t+a1)*t+a0;
 }
 
-double Parser::Eval(double x)
+double VFormula::Eval(double x)
 {
     Var[0] = x;
     return Eval();
 }
 
-double Parser::Eval()
+double VFormula::Eval()
 {
     int codelen = Command.size();
     for (int i=0; i<codelen; i++) {
-        int cmd = Command[i];
-        int addr = cmd%1000;
-        cmd /= 1000;
-
+    //    int cmd = Command[i];
+    //    int addr = cmd%1000;
+    //    cmd /= 1000;
+        short cmd = Command[i].cmd;
+        short addr = Command[i].addr;
         switch (cmd) {
             case CmdOper:
                 (this->*Oper[addr])();
@@ -138,50 +176,103 @@ double Parser::Eval()
                 return result;                         
         }
     }
+    return nan(""); // should never reach this spot
 }
 
-bool Parser::ParseExpr(std::string expr)
+void VFormula::VFail(int pos, std::string msg)
+{
+    valid = false;
+    failpos = pos;
+    ErrorString = msg;
+}
+
+bool VFormula::Validate()
+{
+    valid = true;
+    int codelen = Command.size();
+    int stkptr = 0;
+    bool finished = false;
+
+    for (int i=0; i<codelen; i++) {
+        short cmd = Command[i].cmd;
+        short addr = Command[i].addr;
+        switch (cmd) {
+            case CmdOper:
+                if (addr < 0 || addr >= Oper.size())
+                    VFail(i, "Operation out of range");
+                stkptr = stkptr - OperArgs[addr] + 1; 
+                break;
+            case CmdFunc:
+                if (addr < 0 || addr >= Func.size())
+                    VFail(i, "Function out of range");
+                stkptr = stkptr - FuncArgs[addr] + 1;
+                break;
+            case CmdReadConst:
+                if (addr < 0 || addr >= Const.size())
+                    VFail(i, "Constant out of range");
+                stkptr = stkptr + 1;
+                break;
+            case CmdReadVar:
+                if (addr < 0 || addr >= Var.size())
+                    VFail(i, "Variable out of range");
+                stkptr = stkptr + 1;
+                break;
+            case CmdReturn:
+                stkptr--;
+                finished = true;
+                break;                      
+        }
+        if (finished)
+            break;
+    }
+
+    if (stkptr != 0)
+        VFail(-1, std::string("Stack is out of balance by") + std::to_string(stkptr) + "positions");
+
+    return valid;
+}
+
+bool VFormula::ParseExpr(std::string expr)
 {
     Expr = expr;
     TokPos = 0;
+    LastToken = Token(TokNull, "");
     Command.clear();
     bool status = ShuntingYard();
     if (!status) {
-        std::cout << "Parsing failed at " << TokPos << std::endl;
+        std::cout << std::string(TokPos-1, ' ') << "^" << std::endl;
+        std::cout << "Parsing failed at position " << TokPos << ": ";
         std::cout << ErrorString << std::endl;
         return false;
     }
+    return true;
 }
 
-void Parser::PrintPrg()
+void VFormula::PrintPrg()
 {
-    for (int cmd : Command) {
-        int c = cmd/1000;
-        int i = cmd%1000;
+    char buf[32];
+    for (auto cmd : Command) { //+++
+        int c = cmd.cmd; //1000;
+        int i = cmd.addr; //%1000;
+        sprintf(buf, "%02d:%02d ", c, i);
 
         if (c == CmdOper)
-            std::cout << cmd << "\tOpr\t" << OperMnem[i] << std::endl;
+            std::cout << buf << "\tOpr\t" << OperMnem[i] << std::endl;
         else if (c == CmdFunc)
-            std::cout << cmd << "\tFun\t" << FuncMnem[i] << std::endl;
+            std::cout << buf << "\tFun\t" << FuncMnem[i] << std::endl;
         else if (c == CmdReadConst) {
             if (ConstName[i].size() == 0)
-                std::cout << cmd << "\tCon\t" << Const[i] << std::endl;
+                std::cout << buf << "\tCon\t" << Const[i] << std::endl;
             else
-                std::cout << cmd << "\tCon\t" << ConstName[i] << "=" << Const[i] << std::endl;
+                std::cout << buf << "\tCon\t" << ConstName[i] << "=" << Const[i] << std::endl;
         }
         else if (c == CmdReadVar)
-            std::cout << cmd << "\tVar\t" << VarName[i] << "=" << Var[i] << std::endl;                        
+            std::cout << buf << "\tVar\t" << VarName[i] << "=" << Var[i] << std::endl;                        
     }
 }
 
-void Parser::PrintMap()
+void VFormula::PrintCVMap()
 {
-    std::cout << "Operators\n";
-    for (int i=0; i<OperName.size(); i++)
-        std::cout << OperName[i] << " : " << OperMnem[i] << std::endl;
-    std::cout << "Functions\n";
-    for (int i=0; i<FuncName.size(); i++)
-        std::cout << FuncName[i] << " : " << FuncMnem[i] << std::endl;
     std::cout << "Constants\n";
     for (int i=0; i<ConstName.size(); i++)
         std::cout << ConstName[i] << " : " << Const[i] << std::endl;
@@ -190,7 +281,17 @@ void Parser::PrintMap()
         std::cout << VarName[i] << " : " << Var[i] << std::endl;        
 }
 
-Token Parser::GetNextToken()
+void VFormula::PrintOFMap()
+{
+    std::cout << "Operators\n";
+    for (int i=0; i<OperName.size(); i++)
+        std::cout << OperName[i] << " : " << OperMnem[i] << std::endl;
+    std::cout << "Functions\n";
+    for (int i=0; i<FuncName.size(); i++)
+        std::cout << FuncName[i] << " : " << FuncMnem[i] << std::endl;      
+}
+
+Token VFormula::GetNextToken()
 {
 // skip spaces    
     while (TokPos < Expr.size() && Expr[TokPos] == ' ')
@@ -256,6 +357,15 @@ Token Parser::GetNextToken()
         return Token(TokError, std::string("Unknown symbol: ")+symbol);
     }
 
+// unary minus and plus
+    if (ch0 == '-' || ch0 == '+') {
+        TokenType t = LastToken.type;
+        if ( t == TokNull || t == TokOpen || t == TokOper || t==TokComma) {
+            TokPos++;
+            return Token(TokUnary, ch0 == '-' ? "-" : "+", ch0 == '-' ? neg : nop);
+        }
+    }    
+
 // operators
     for (int i=0; i<OperName.size(); i++) 
         if (Expr.substr(TokPos, std::string::npos).find(OperName[i]) == 0) {
@@ -266,10 +376,17 @@ Token Parser::GetNextToken()
     return Token(TokError, "Unknown character or character combination");
 }
 
-bool Parser::ShuntingYard()
+bool VFormula::ShuntingYard()
 {
+// we'll track parentheses level
+// it must never get negative and return to zero in the end
+    int par_level = 0;  
+
     while (1) {
         Token token = GetNextToken();
+        if (!CheckSyntax(token)) {
+            return false;
+        }
 
         if (token.type == TokError) {
             ErrorString = token.string;
@@ -280,71 +397,125 @@ bool Parser::ShuntingYard()
         // we have special treatment for the cases of ^2 and ^3
         // to make them process a bit faster
             if (!OpStack.empty() && OpStack.top().string == "^" && Const[token.addr] == 2) { // ^2
-                Command.push_back(CmdFunc*1000 + pow2);
+                Command.push_back(MkCmd(CmdFunc, pow2));
                 OpStack.pop();
             } else if (!OpStack.empty() && OpStack.top().string == "^" && Const[token.addr] == 3) { // ^3
-                Command.push_back(CmdFunc*1000 + pow3);
+                Command.push_back(MkCmd(CmdFunc, pow3));
                 OpStack.pop();
             } else { // in all other cases
-                Command.push_back(CmdReadConst*1000 + token.addr); // move to command queue
+                Command.push_back(MkCmd(CmdReadConst, token.addr)); // move to command queue
             }
         }
 
         else if (token.type == TokVar) 
-            Command.push_back(CmdReadVar*1000 + token.addr); // move to command queue
+            Command.push_back(MkCmd(CmdReadVar, token.addr)); // move to command queue
 
         else if (token.type == TokFunc) {
             token.args = FuncArgs[token.addr]; // fill correct number of args (should be done in tokenizer?)
             OpStack.push(token); // push to Op stack
         }
 
+        else if (token.type == TokUnary) {
+            if (token.string == "-")
+                OpStack.push(token); // push to Op stack
+        }
+
         else if (token.type == TokOper) {
             int rank = OperRank[token.addr];
             while (!OpStack.empty()) {
                 Token op2 = OpStack.top();
-                if (op2.type == TokOper && OperRank[op2.addr] < rank) {
-                    Command.push_back(CmdOper*1000 + op2.addr);
+                // <=  assuming all operators are left-associative
+                if ((op2.type == TokOper && OperRank[op2.addr] <= rank) || op2.type == TokUnary) {
+                    Command.push_back(MkCmd(CmdOper, op2.addr));
                     OpStack.pop();
                 } else {
+                    LastToken = token;
                     break;
                 }
             }
             OpStack.push(token);
         }
 
-        else if (token.type == TokOpen)
+        else if (token.type == TokOpen) {
+            par_level++;
             OpStack.push(token);
+        }
 
         else if (token.type == TokClose || token.type == TokComma) {
+            if (token.type == TokClose) {
+                par_level--;
+                if (par_level < 0) {
+                    ErrorString = "Extra )";
+                    return false;                   
+                }
+            }
+
             while (!OpStack.empty() && OpStack.top().type != TokOpen) {
-                Command.push_back(CmdOper*1000 + OpStack.top().addr);
+                Command.push_back(MkCmd(CmdOper, OpStack.top().addr));
                 OpStack.pop();
             }
-            if (!OpStack.empty() && OpStack.top().type == TokOpen)
+            if (OpStack.empty()) {
+                ErrorString = "Mismatched parenthesis";
+                return false;
+            }
+
+            if (OpStack.top().type == TokOpen) // at this point this should be always true
                 OpStack.pop();
+            else {
+                ErrorString = "Parentheses canary: check the parsing code";
+                return false;                
+            }               
+
             if (!OpStack.empty() && OpStack.top().type == TokFunc)
                 if (--(OpStack.top().args) == 0) {
-                    Command.push_back(CmdFunc*1000 + OpStack.top().addr);
+                    Command.push_back(MkCmd(CmdFunc, OpStack.top().addr));
                     OpStack.pop();
             }
 
-            if(token.type == TokComma) // "," is equivalent to ")("
-                OpStack.push(Token(TokOpen, "("));
+            if (token.type == TokComma) // "," is equivalent to ")("
+                OpStack.push(Token(TokOpen, "("));    
         }
 
-        else if (token.type == TokEnd)
+        else if (token.type == TokEnd) {
+            if (par_level != 0) {
+                ErrorString = std::string("Unbalanced ") + std::string(par_level, '(');
+                return false;    
+            }
             break;
+        }
+        LastToken = token;
     }
 
     while (!OpStack.empty()) {
-        Command.push_back(CmdOper*1000 + OpStack.top().addr);
+        Command.push_back(MkCmd(CmdOper, OpStack.top().addr));
         OpStack.pop();
     }
-    Command.push_back(CmdReturn*1000);
+    Command.push_back(MkCmd(CmdReturn, 0));
     return true;
 }
 
-bool Parser::FindSymbol(std::vector <std::string> &namevec, std::string symbol, int *addr)
+bool VFormula::CheckSyntax(Token token)
+{
+    TokenType cur = token.type;
+    TokenType last = LastToken.type;
+    if(cur == TokOper && last == TokOper) {
+        ErrorString = "Missing Operand";
+        return false;
+    }
+    if ((cur == TokConst || cur == TokVar || cur == TokNumber || cur == TokOpen || cur == TokFunc) && 
+        (last == TokConst || last == TokVar || last == TokNumber)) {
+            ErrorString = "Missing Operator";
+            return false;
+    }
+    if ((cur == TokConst || cur == TokVar || cur == TokNumber || cur == TokFunc) && 
+        (last == TokClose)) {
+            ErrorString = "Missing Operator";
+            return false;
+    }
+    return true;
+}
+
+bool VFormula::FindSymbol(std::vector <std::string> &namevec, std::string symbol, int *addr)
 {
     std::vector <std::string> :: iterator itr;
 
@@ -356,16 +527,17 @@ bool Parser::FindSymbol(std::vector <std::string> &namevec, std::string symbol, 
     return true;
 }
 
-int Parser::AddOperation(std::string name, FuncPtr ptr, std::string mnem, int rank)
+int VFormula::AddOperation(std::string name, FuncPtr ptr, std::string mnem, int rank, int args)
 {
     OperName.push_back(name);
     OperMnem.push_back(mnem);
     OperRank.push_back(rank);
+    OperArgs.push_back(args);
     Oper.push_back(ptr);
     return Oper.size()-1;
 }
 
-int Parser::AddFunction(std::string name, FuncPtr ptr, std::string mnem, int args) 
+int VFormula::AddFunction(std::string name, FuncPtr ptr, std::string mnem, int args) 
 {
     FuncName.push_back(name);
     FuncMnem.push_back(mnem);
@@ -374,7 +546,7 @@ int Parser::AddFunction(std::string name, FuncPtr ptr, std::string mnem, int arg
     return Func.size()-1;
 }
 
-int Parser::AddConstant(std::string name, double val)
+int VFormula::AddConstant(std::string name, double val)
 {
     int addr;
     if (name.size() == 0) { // if automatically generated (empty name)
@@ -391,7 +563,7 @@ int Parser::AddConstant(std::string name, double val)
     return Const.size()-1;
 }
 
-int Parser::AddVariable(std::string name, double val) 
+int VFormula::AddVariable(std::string name, double val) 
 {
 // if the variable with this name already exists - update it   
     int addr;
@@ -405,19 +577,19 @@ int Parser::AddVariable(std::string name, double val)
     return Var.size()-1;
 }
 
-double Parser::GetConstant(std::string name)
+double VFormula::GetConstant(std::string name)
 {
     int addr;
     return FindSymbol(ConstName, name, &addr) ? Const[addr] : nan("");
 }
 
-double Parser::GetVariable(std::string name)
+double VFormula::GetVariable(std::string name)
 {
     int addr;
     return FindSymbol(VarName, name, &addr) ? Var[addr] : nan("");    
 }
 
-bool Parser::SetConstant(std::string name, double val)
+bool VFormula::SetConstant(std::string name, double val)
 {
     int addr;
     bool status = FindSymbol(ConstName, name, &addr);
@@ -426,7 +598,7 @@ bool Parser::SetConstant(std::string name, double val)
     return status;     
 }
 
-bool Parser::SetVariable(std::string name, double val)
+bool VFormula::SetVariable(std::string name, double val)
 {
     int addr;
     bool status = FindSymbol(VarName, name, &addr);
