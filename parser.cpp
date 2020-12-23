@@ -8,13 +8,14 @@ int main()
 {
     VFormula p;
 //    std::string e("1/(exp((x-3)/2)+exp((3-x)/2))");
-    std::string e("-1+pol2(-x,2+sin(x+pi/2),-3,4)");
+//    std::string e("-1+pol2(-x,2+sin(x+pi/2),-3,4)");
 //    std::string e("1+pol2(-x,2,-3,4)");
 //    std::string e("x+1+2+3+4+5+6+7+8+9+10");
+//    std::string e("x+(1+(2+(3+(4+(5+(6+(7+(8+(9+10)))))))))");
 //    std::string e("1+atan2(1,1)/pi");
 //    std::string e("sin(pi/4)-sqrt(2)/2");
 //    std::string e("asin(sin(pi*0.45))/pi");
-//    std::string e("0.5/cosh((x-3)/2)");
+    std::string e("0.5/cosh((x-3)/2)");
 //    std::string e("sqrt(x^2+y^2)");
 //    std::string e("2^2.000001^3.00001-2^2^3");
 //    std::string e("2/-2/-2");
@@ -150,13 +151,10 @@ double VFormula::Eval(double x)
 
 double VFormula::Eval()
 {
-    int codelen = Command.size();
-    for (int i=0; i<codelen; i++) {
-    //    int cmd = Command[i];
-    //    int addr = cmd%1000;
-    //    cmd /= 1000;
-        short cmd = Command[i].cmd;
-        short addr = Command[i].addr;
+    size_t codelen = Command.size();
+    for (size_t i=0; i<codelen; i++) {
+        unsigned short cmd = Command[i].cmd;
+        unsigned short addr = Command[i].addr;
         switch (cmd) {
             case CmdOper:
                 (this->*Oper[addr])();
@@ -189,31 +187,31 @@ void VFormula::VFail(int pos, std::string msg)
 bool VFormula::Validate()
 {
     valid = true;
-    int codelen = Command.size();
+    size_t codelen = Command.size();
     int stkptr = 0;
     bool finished = false;
 
-    for (int i=0; i<codelen; i++) {
-        short cmd = Command[i].cmd;
-        short addr = Command[i].addr;
+    for (size_t i=0; i<codelen; i++) {
+        unsigned short cmd = Command[i].cmd;
+        unsigned short addr = Command[i].addr;
         switch (cmd) {
             case CmdOper:
-                if (addr < 0 || addr >= Oper.size())
+                if (addr >= Oper.size())
                     VFail(i, "Operation out of range");
                 stkptr = stkptr - OperArgs[addr] + 1; 
                 break;
             case CmdFunc:
-                if (addr < 0 || addr >= Func.size())
+                if (addr >= Func.size())
                     VFail(i, "Function out of range");
                 stkptr = stkptr - FuncArgs[addr] + 1;
                 break;
             case CmdReadConst:
-                if (addr < 0 || addr >= Const.size())
+                if (addr >= Const.size())
                     VFail(i, "Constant out of range");
                 stkptr = stkptr + 1;
                 break;
             case CmdReadVar:
-                if (addr < 0 || addr >= Var.size())
+                if (addr >= Var.size())
                     VFail(i, "Variable out of range");
                 stkptr = stkptr + 1;
                 break;
@@ -251,9 +249,9 @@ bool VFormula::ParseExpr(std::string expr)
 void VFormula::PrintPrg()
 {
     char buf[32];
-    for (auto cmd : Command) { //+++
-        int c = cmd.cmd; //1000;
-        int i = cmd.addr; //%1000;
+    for (auto cmd : Command) {
+        int c = cmd.cmd; 
+        int i = cmd.addr; 
         sprintf(buf, "%02d:%02d ", c, i);
 
         if (c == CmdOper)
@@ -274,20 +272,20 @@ void VFormula::PrintPrg()
 void VFormula::PrintCVMap()
 {
     std::cout << "Constants\n";
-    for (int i=0; i<ConstName.size(); i++)
+    for (size_t i=0; i<ConstName.size(); i++)
         std::cout << ConstName[i] << " : " << Const[i] << std::endl;
     std::cout << "Variables\n";
-    for (int i=0; i<VarName.size(); i++)
+    for (size_t i=0; i<VarName.size(); i++)
         std::cout << VarName[i] << " : " << Var[i] << std::endl;        
 }
 
 void VFormula::PrintOFMap()
 {
     std::cout << "Operators\n";
-    for (int i=0; i<OperName.size(); i++)
+    for (size_t i=0; i<OperName.size(); i++)
         std::cout << OperName[i] << " : " << OperMnem[i] << std::endl;
     std::cout << "Functions\n";
-    for (int i=0; i<FuncName.size(); i++)
+    for (size_t i=0; i<FuncName.size(); i++)
         std::cout << FuncName[i] << " : " << FuncMnem[i] << std::endl;      
 }
 
@@ -327,8 +325,8 @@ Token VFormula::GetNextToken()
 
 // symbol (variable, constant or function name)
     if (std::isalpha(ch0)) { 
-        int len = 1;
-        for (int i=TokPos+1; i<Expr.size(); i++) {
+        size_t len = 1;
+        for (size_t i=TokPos+1; i<Expr.size(); i++) {
             int ch = Expr[i];
             if (!isalpha(ch) && !isdigit(ch) && ch!='_') 
                 break;
@@ -338,7 +336,7 @@ Token VFormula::GetNextToken()
         TokPos += len;
 
     // now check if it is a known symbol       
-        int addr;
+        size_t addr;
         if (FindSymbol(ConstName, symbol, &addr))
             return Token(TokConst, symbol, addr);
 
@@ -367,7 +365,7 @@ Token VFormula::GetNextToken()
     }    
 
 // operators
-    for (int i=0; i<OperName.size(); i++) 
+    for (size_t i=0; i<OperName.size(); i++) 
         if (Expr.substr(TokPos, std::string::npos).find(OperName[i]) == 0) {
             TokPos += OperName[i].size();
             return Token(TokOper, OperName[i], i);
@@ -515,7 +513,7 @@ bool VFormula::CheckSyntax(Token token)
     return true;
 }
 
-bool VFormula::FindSymbol(std::vector <std::string> &namevec, std::string symbol, int *addr)
+bool VFormula::FindSymbol(std::vector <std::string> &namevec, std::string symbol, size_t *addr)
 {
     std::vector <std::string> :: iterator itr;
 
@@ -527,7 +525,7 @@ bool VFormula::FindSymbol(std::vector <std::string> &namevec, std::string symbol
     return true;
 }
 
-int VFormula::AddOperation(std::string name, FuncPtr ptr, std::string mnem, int rank, int args)
+size_t VFormula::AddOperation(std::string name, FuncPtr ptr, std::string mnem, int rank, int args)
 {
     OperName.push_back(name);
     OperMnem.push_back(mnem);
@@ -537,7 +535,7 @@ int VFormula::AddOperation(std::string name, FuncPtr ptr, std::string mnem, int 
     return Oper.size()-1;
 }
 
-int VFormula::AddFunction(std::string name, FuncPtr ptr, std::string mnem, int args) 
+size_t VFormula::AddFunction(std::string name, FuncPtr ptr, std::string mnem, int args) 
 {
     FuncName.push_back(name);
     FuncMnem.push_back(mnem);
@@ -546,9 +544,9 @@ int VFormula::AddFunction(std::string name, FuncPtr ptr, std::string mnem, int a
     return Func.size()-1;
 }
 
-int VFormula::AddConstant(std::string name, double val)
+size_t VFormula::AddConstant(std::string name, double val)
 {
-    int addr;
+    size_t addr;
     if (name.size() == 0) { // if automatically generated (empty name)
         std::vector <double> :: iterator itr = std::find(Const.begin(), Const.end(), val);
         if (itr != Const.end()) // if a constant with the same value already exists
@@ -563,10 +561,10 @@ int VFormula::AddConstant(std::string name, double val)
     return Const.size()-1;
 }
 
-int VFormula::AddVariable(std::string name, double val) 
+size_t VFormula::AddVariable(std::string name, double val) 
 {
 // if the variable with this name already exists - update it   
-    int addr;
+    size_t addr;
     if (FindSymbol(VarName, name, &addr)) { 
         Var[addr] = val;
         return addr;
@@ -579,19 +577,19 @@ int VFormula::AddVariable(std::string name, double val)
 
 double VFormula::GetConstant(std::string name)
 {
-    int addr;
+    size_t addr;
     return FindSymbol(ConstName, name, &addr) ? Const[addr] : nan("");
 }
 
 double VFormula::GetVariable(std::string name)
 {
-    int addr;
+    size_t addr;
     return FindSymbol(VarName, name, &addr) ? Var[addr] : nan("");    
 }
 
 bool VFormula::SetConstant(std::string name, double val)
 {
-    int addr;
+    size_t addr;
     bool status = FindSymbol(ConstName, name, &addr);
     if (status)
         Const[addr] = val;
@@ -600,7 +598,7 @@ bool VFormula::SetConstant(std::string name, double val)
 
 bool VFormula::SetVariable(std::string name, double val)
 {
-    int addr;
+    size_t addr;
     bool status = FindSymbol(VarName, name, &addr);
     if (status)
         Var[addr] = val;

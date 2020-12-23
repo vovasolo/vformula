@@ -60,8 +60,8 @@ struct MyStack {
 };
 */
 struct Cmdaddr{
-    short cmd;
-    short addr;
+    unsigned short cmd;
+    unsigned short addr;
     Cmdaddr(int c, int a) : cmd(c), addr(a) {;} 
 }; 
 
@@ -81,8 +81,7 @@ public:
     };
 
 // Evaluator memory
-//    std::vector <int> Command;   // expression translated to commands in postfix order
-    std::vector <Cmdaddr> Command; //+++
+    std::vector <Cmdaddr> Command; // expression translated to commands in postfix order
     std::vector <double> Const;  // vector of constants
     std::vector <double> Var;    // vector of variables
     std::vector <FuncPtr> Func;  // vector of function pointers 
@@ -143,12 +142,12 @@ public:
     VFormula();
     virtual ~VFormula() {;}
 
-    bool FindSymbol(std::vector <std::string> &namevec, std::string symbol, int *addr);
+    bool FindSymbol(std::vector <std::string> &namevec, std::string symbol, size_t *addr);
 
-    int AddOperation(std::string name, FuncPtr ptr, std::string mnem, int rank, int args=2);
-    int AddFunction(std::string name, FuncPtr ptr, std::string mnem, int args=1);
-    int AddConstant(std::string name, double val);
-    int AddVariable(std::string name, double val);
+    size_t AddOperation(std::string name, FuncPtr ptr, std::string mnem, int rank, int args=2);
+    size_t AddFunction(std::string name, FuncPtr ptr, std::string mnem, int args=1);
+    size_t AddConstant(std::string name, double val);
+    size_t AddVariable(std::string name, double val);
 
     double GetConstant(std::string name);
     double GetVariable(std::string name);
@@ -160,8 +159,7 @@ public:
     Token GetNextToken();
     bool ShuntingYard();
 
-//    int MkCmd(int cmd, int addr) {return cmd*1000 + addr;}
-    Cmdaddr MkCmd(int cmd, int addr) {return Cmdaddr(cmd, addr);} //+++
+    Cmdaddr MkCmd(int cmd, int addr) {return Cmdaddr(cmd, addr);}
 
     void PrintCVMap();
     void PrintOFMap();
@@ -178,14 +176,14 @@ public:
 
 private:
     std::string Expr;
-    int TokPos = 0; // current token position in Expr
+    size_t TokPos = 0; // current token position in Expr
     Token LastToken = Token(TokNull, "");
-    int CmdPos = 0;
+    size_t CmdPos = 0;
     std::string ErrorString;
-    int pow2, pow3; // positions of the fast square and cube functions
-    int neg, nop; // position of the sign inverse and nop functions 
+    size_t pow2, pow3; // positions of the fast square and cube functions
+    size_t neg, nop; // position of the sign inverse and nop functions 
     bool valid = true; // result of the code validity check
 public:    
-    int failpos; // position in the code at which validation failed
+    size_t failpos; // position in the code at which validation failed
 };
 
