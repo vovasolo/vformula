@@ -1,190 +1,60 @@
-#include "parser.h"
+#include "vformula.h"
 #include <algorithm>
 #include <iostream>
+#include <cstddef>
 #include <cstdio>
-#include <chrono>
+#include <string>
+#include <vector>
 
-int main()
+//#include <chrono>
+
+VParser::VParser()
 {
-    VFormula p;
-//    std::string e("1/(exp((x-3)/2)+exp((3-x)/2))");
-//    std::string e("-1+pol2(-x,2+sin(x+pi/2),-3,4)");
-//    std::string e("1+pol2(-x,2,-3,4)");
-//    std::string e("x+1+2+3+4+5+6+7+8+9+10");
-//    std::string e("x+(1+(2+(3+(4+(5+(6+(7+(8+(9+10)))))))))");
-//    std::string e("1+atan2(1,1)/pi");
-//    std::string e("sin(pi/4)-sqrt(2)/2");
-//    std::string e("asin(sin(pi*0.45))/pi");
-    std::string e("0.5/cosh((x-3)/2)");
-//    std::string e("sqrt(x^2+y^2)");
-//    std::string e("2^2.000001^3.00001-2^2^3");
-//    std::string e("2/-2/-2");
-
-//    p.ParseExpr("sin(pi/4)-sqrt(2)/2");
-//    p.ParseExpr("10*10+15");
-//    p.ParseExpr("1");
-//    p.ParseExpr("exp(0-(x-3)*(x-3))/2");
-//    p.ParseExpr("1/(exp((x-3)/2)+exp((3-x)/2))");
-//    p.ParseExpr("0.5/cosh((x-3)/2)");
-
-//    std::cout << "sizeof(Cmdaddr) = " << sizeof(Cmdaddr) << std::endl;
-    
-    std::cout << "\n--------Expression-------\n";
-    std::cout << e << std::endl;  
-    bool status = p.ParseExpr(e);
-    if (!status) {
-        return 0;
-    }
-       
-    std::cout << "\n----------Map------------\n";
-    p.PrintCVMap();
-    std::cout << "\n---------Program---------\n";
-    p.PrintPrg();
-
-    status = p.Validate();
-    if (!status) {
-        std::cout << "Validation failed at " << p.failpos << " : " << p.GetErrorString(); 
-        return 0;
-    } else {
-        std::cout << "\nCode validation OK\n";
-    }
-
-    std::cout << "\n-----------Eval----------\n";
-    std::cout << p.Eval(6) << std::endl;
-    std::cout << p.Stack.size() << " elements left in the stack\n\n"; 
-
-// timed run
-    std::cout << "Timed run\n";    
-    auto start = std::chrono::high_resolution_clock::now();
-
-//  Code to be timed
-    double sum =  0.;
-    for (int i=0; i<10000000; i++) {
-        sum += p.Eval(6);
-    }
-    std::cout << sum << std::endl;
-
-    auto end = std::chrono::high_resolution_clock::now();
-    auto diff = end - start;
-    std::cout << std::chrono::duration <double, std::nano> (diff).count()/10000000 << " ns/eval" << std::endl;
-    
-    return 0;
-}
-
-VFormula::VFormula()
-{
-    AddOperation("+", &VFormula::Add, "ADD", 5);
-    AddOperation("-", &VFormula::Sub, "SUB", 5);
-    AddOperation("*", &VFormula::Mul, "MUL", 4);
-    AddOperation("/", &VFormula::Div, "DIV", 4);
-    AddOperation("^", &VFormula::Pow, "POW", 3);
+    AddOperation("+", "ADD", 5);
+    AddOperation("-", "SUB", 5);
+    AddOperation("*", "MUL", 4);
+    AddOperation("/", "DIV", 4);
+    AddOperation("^", "POW", 3);
 // unary minus and plus  
-    neg = AddOperation("--", &VFormula::Neg, "NEG", 2, 1);
-    nop = AddOperation("++", &VFormula::Nop, "NOP", 2, 1);
+    neg = AddOperation("--", "NEG", 2, 1);
+    nop = AddOperation("++", "NOP", 2, 1);
     
-    pow2 = AddFunction("pow2", &VFormula::Pow2, "POW2");
-    pow3 = AddFunction("pow3", &VFormula::Pow3, "POW3");
+    pow2 = AddFunction("pow2", "POW2");
+    pow3 = AddFunction("pow3", "POW3");
 
-    AddFunction("pow", &VFormula::Pow, "POW", 2);
-    AddFunction("abs", &VFormula::Exp, "ABS");
-    AddFunction("sqrt", &VFormula::Sqrt, "SQRT");
-    AddFunction("exp", &VFormula::Exp, "EXP");
-    AddFunction("log", &VFormula::Log, "LOG");    
-    AddFunction("sin", &VFormula::Sin, "SIN");
-    AddFunction("cos", &VFormula::Cos, "COS");
-    AddFunction("tan", &VFormula::Tan, "TAN");
-    AddFunction("asin", &VFormula::Asin, "ASIN");
-    AddFunction("acos", &VFormula::Acos, "ACOS");
-    AddFunction("atan", &VFormula::Atan, "ATAN");
-    AddFunction("atan2", &VFormula::Atan2, "ATAN2", 2);
+    AddFunction("pow", "POW", 2);
+    AddFunction("abs", "ABS");
+    AddFunction("sqrt", "SQRT");
+    AddFunction("exp", "EXP");
+    AddFunction("log", "LOG");
 
-    AddFunction("sinh", &VFormula::Sinh, "SINH");
-    AddFunction("cosh", &VFormula::Cosh, "COSH");
-    AddFunction("tanh", &VFormula::Tanh, "TANH");
-    AddFunction("asinh", &VFormula::Asinh, "ASINH");
-    AddFunction("acosh", &VFormula::Acosh, "ACOSH");
-    AddFunction("atanh", &VFormula::Atanh, "ATANH");
+    AddFunction("sin", "SIN");
+    AddFunction("cos", "COS");
+    AddFunction("tan", "TAN");
+    AddFunction("asin", "ASIN");
+    AddFunction("acos", "ACOS");
+    AddFunction("atan", "ATAN");
 
-    AddFunction("int", &VFormula::Int, "INT");
-    AddFunction("frac", &VFormula::Frac, "FRAC");
+    AddFunction("sinh", "SINH");
+    AddFunction("cosh", "COSH");
+    AddFunction("tanh", "TANH");
+    AddFunction("asinh", "ASINH");
+    AddFunction("acosh", "ACOSH");
+    AddFunction("atanh", "ATANH");
 
-    AddFunction("max", &VFormula::Max, "MAX", 2);
-    AddFunction("min", &VFormula::Min, "MIN", 2);
+    AddFunction("max", "MAX", 2);
+    AddFunction("min", "MIN", 2);
 
-    AddFunction("gaus", &VFormula::Gaus, "GAUS", 3);
-    AddFunction("pol2", &VFormula::Pol2, "POL2", 4);
-
-    AddConstant("pi", M_PI);
-
-    AddVariable("x", 0.);
-    AddVariable("y", 0.);
-    AddVariable("z", 0.);
 }
 
-void VFormula::Gaus()
-{
-    double sigma = Stack.top(); 
-    Stack.pop();
-    double x0 = Stack.top(); 
-    Stack.pop();
-    double t = (Stack.top()-x0)/sigma;
-    Stack.top() = 1/(sigma*sqrt(M_PI*2))*exp(-0.5*t*t);
-}
-
-void VFormula::Pol2()
-{
-    double a0 = Stack.top(); 
-    Stack.pop();
-    double a1 = Stack.top(); 
-    Stack.pop();
-    double a2 = Stack.top();
-    Stack.pop();
-    double t = Stack.top();
-    Stack.top() = (a2*t+a1)*t+a0;
-}
-
-double VFormula::Eval(double x)
-{
-    Var[0] = x;
-    return Eval();
-}
-
-double VFormula::Eval()
-{
-    size_t codelen = Command.size();
-    for (size_t i=0; i<codelen; i++) {
-        unsigned short cmd = Command[i].cmd;
-        unsigned short addr = Command[i].addr;
-        switch (cmd) {
-            case CmdOper:
-                (this->*Oper[addr])();
-                break;
-            case CmdFunc:
-                (this->*Func[addr])();
-                break;
-            case CmdReadConst:
-                Stack.push(Const[addr]);
-                break;
-            case CmdReadVar:
-                Stack.push(Var[addr]);
-                break;
-            case CmdReturn:
-                double result = Stack.top();
-                Stack.pop();
-                return result;                         
-        }
-    }
-    return nan(""); // should never reach this spot
-}
-
-void VFormula::VFail(int pos, std::string msg)
+void VParser::VFail(int pos, std::string msg)
 {
     valid = false;
     failpos = pos;
     ErrorString = msg;
 }
 
-bool VFormula::Validate()
+bool VParser::Validate()
 {
     valid = true;
     size_t codelen = Command.size();
@@ -196,12 +66,12 @@ bool VFormula::Validate()
         unsigned short addr = Command[i].addr;
         switch (cmd) {
             case CmdOper:
-                if (addr >= Oper.size())
+                if (addr >= OperName.size())
                     VFail(i, "Operation out of range");
                 stkptr = stkptr - OperArgs[addr] + 1; 
                 break;
             case CmdFunc:
-                if (addr >= Func.size())
+                if (addr >= FuncName.size())
                     VFail(i, "Function out of range");
                 stkptr = stkptr - FuncArgs[addr] + 1;
                 break;
@@ -211,9 +81,16 @@ bool VFormula::Validate()
                 stkptr = stkptr + 1;
                 break;
             case CmdReadVar:
-                if (addr >= Var.size())
+                if (addr >= VarName.size())
                     VFail(i, "Variable out of range");
                 stkptr = stkptr + 1;
+                break;
+            case CmdWriteVar:
+                if (addr >= VarName.size())
+                    VFail(i, "Variable out of range");
+                stkptr = stkptr - 1;
+                if (stkptr != 0)
+                    VFail(-1, std::string("Upon an assignment stack is out of balance by ") + std::to_string(stkptr));
                 break;
             case CmdReturn:
                 stkptr--;
@@ -225,71 +102,99 @@ bool VFormula::Validate()
     }
 
     if (stkptr != 0)
-        VFail(-1, std::string("Stack is out of balance by") + std::to_string(stkptr) + "positions");
+        VFail(-1, std::string("Stack is out of balance by ") + std::to_string(stkptr) + " position(s)");
 
     return valid;
 }
 
-bool VFormula::ParseExpr(std::string expr)
+// parses provided expression
+// returns 1024 on success or first error position on failure
+int VParser::ParseExpr(std::string expr)
 {
     Expr = expr;
     TokPos = 0;
     LastToken = Token(TokNull, "");
     Command.clear();
-    bool status = ShuntingYard();
-    if (!status) {
-        std::cout << std::string(TokPos-1, ' ') << "^" << std::endl;
-        std::cout << "Parsing failed at position " << TokPos << ": ";
-        std::cout << ErrorString << std::endl;
-        return false;
-    }
-    return true;
+    while(!OpStack.empty()) // empty operation stack
+        OpStack.pop();
+    PruneConstants();
+    return ShuntingYard() ? 1024 : TokPos;
 }
 
-void VFormula::PrintPrg()
+std::vector<std::string> VParser::GetPrg()
 {
     char buf[32];
+    std::vector<std::string> out;
+    //std::string tab("\t");
     for (auto cmd : Command) {
-        int c = cmd.cmd; 
-        int i = cmd.addr; 
+        int c = cmd.cmd;
+        int i = cmd.addr;
         sprintf(buf, "%02d:%02d ", c, i);
 
         if (c == CmdOper)
-            std::cout << buf << "\tOpr\t" << OperMnem[i] << std::endl;
+            //std::cout << buf << "\t" << OperMnem[i] << std::endl;
+            out.push_back(std::string(buf) + "\t" + OperMnem[i]);
         else if (c == CmdFunc)
-            std::cout << buf << "\tFun\t" << FuncMnem[i] << std::endl;
+            //std::cout << buf << "\tCALL\t" << FuncMnem[i] << std::endl;
+            out.push_back(std::string(buf) + "\tCALL\t" + FuncMnem[i]);
         else if (c == CmdReadConst) {
-            if (ConstName[i].size() == 0)
-                std::cout << buf << "\tCon\t" << Const[i] << std::endl;
+            if (i >= ConstName.size())
+                //std::cout << buf << "\tPUSHC\t" << Const[i] << std::endl;
+                out.push_back(std::string(buf) + "\tPUSHC\t" + std::to_string(Const[i]));
             else
-                std::cout << buf << "\tCon\t" << ConstName[i] << "=" << Const[i] << std::endl;
+                //std::cout << buf << "\tPUSHC\t" << ConstName[i] << "=" << Const[i] << std::endl;
+                out.push_back(std::string(buf) + "\tPUSHC\t" + ConstName[i] + "=" + std::to_string(Const[i]));
         }
         else if (c == CmdReadVar)
-            std::cout << buf << "\tVar\t" << VarName[i] << "=" << Var[i] << std::endl;                        
+            //std::cout << buf << "\tPUSHV\t" << VarName[i] << std::endl;
+            out.push_back(std::string(buf) + "\tPUSHV\t" + VarName[i]);
+        else if (c == CmdWriteVar)
+            //std::cout << buf << "\tPOPV\t" << VarName[i] << std::endl;
+            out.push_back(std::string(buf) + "\tPOPV\t" + VarName[i]);
     }
+    return out;
 }
 
-void VFormula::PrintCVMap()
+std::vector<std::string> VParser::GetConstMap()
 {
-    std::cout << "Constants\n";
-    for (size_t i=0; i<ConstName.size(); i++)
-        std::cout << ConstName[i] << " : " << Const[i] << std::endl;
-    std::cout << "Variables\n";
+    std::vector<std::string> out;
+
+    for (size_t i=0; i<Const.size(); i++) {
+        std::string name( i<ConstName.size() ? ConstName[i] : "*");
+        out.push_back(name + " : " + std::to_string(Const[i]));
+    }
+        
+    return out;      
+}
+
+std::vector<std::string> VParser::GetVarMap()
+{
+    std::vector<std::string> out;
+
     for (size_t i=0; i<VarName.size(); i++)
-        std::cout << VarName[i] << " : " << Var[i] << std::endl;        
+        out.push_back(VarName[i]);
+    return out;     
 }
 
-void VFormula::PrintOFMap()
+std::vector<std::string> VParser::GetOperMap()
 {
-    std::cout << "Operators\n";
+    std::vector<std::string> out;
+
     for (size_t i=0; i<OperName.size(); i++)
-        std::cout << OperName[i] << " : " << OperMnem[i] << std::endl;
-    std::cout << "Functions\n";
-    for (size_t i=0; i<FuncName.size(); i++)
-        std::cout << FuncName[i] << " : " << FuncMnem[i] << std::endl;      
+        out.push_back(OperName[i] + " : " + OperMnem[i]);
+    return out;
 }
 
-Token VFormula::GetNextToken()
+std::vector<std::string> VParser::GetFuncMap()
+{
+    std::vector<std::string> out;
+
+    for (size_t i=0; i<FuncName.size(); i++)
+        out.push_back(FuncName[i] + " : " + FuncMnem[i]);
+    return out;
+}
+
+VParser::Token VParser::GetNextToken()
 {
 // skip spaces    
     while (TokPos < Expr.size() && Expr[TokPos] == ' ')
@@ -300,7 +205,7 @@ Token VFormula::GetNextToken()
 
     int ch0 = Expr[TokPos]; // fetch the character at the current token position
 
-// parentheses and commas
+// parentheses, comma and semicolon
     if (ch0 == '(') {
         TokPos++;
         return Token(TokOpen, "(");
@@ -313,12 +218,16 @@ Token VFormula::GetNextToken()
         TokPos++;
         return Token(TokComma, ",");
     }
+    if (ch0 == ';') {
+        TokPos++;
+        return Token(TokEndSub, ";");
+    }
 
 // number
     if (std::isdigit(ch0)) { 
         std::size_t len;
         double val = std::stod(Expr.substr(TokPos, std::string::npos), &len);
-        int addr = AddConstant("", val); // numbers are stored as nameless constants 
+        int addr = AddAutoConstant(val); // numbers are stored as nameless constants 
         TokPos += len;
         return Token(TokNumber, Expr.substr(TokPos-len, len), addr); 
     }
@@ -334,6 +243,23 @@ Token VFormula::GetNextToken()
         }
         std::string symbol = Expr.substr(TokPos, len);
         TokPos += len;
+    
+    // check if it's assignment
+        if (Expr[TokPos] == '=') {
+            size_t addr;
+            if (FindSymbol(ConstName, symbol, &addr))
+                return Token(TokError, std::string("Can not assign to constant: ")+symbol);
+            if (FindSymbol(ConstName, symbol, &addr))
+                return Token(TokError, std::string("Can not assign to function: ")+symbol);
+
+            if (!FindSymbol(VarName, symbol, &addr)) {
+                VarName.push_back(symbol);
+                addr = VarName.size()-1;
+            } 
+            TokPos += 1;
+//            std::cout << "symbol " << symbol << ", size " << VarName.size() << ", addr " << addr << std::endl;
+            return Token(TokWrVar, symbol, addr);
+        }
 
     // now check if it is a known symbol       
         size_t addr;
@@ -374,7 +300,7 @@ Token VFormula::GetNextToken()
     return Token(TokError, "Unknown character or character combination");
 }
 
-bool VFormula::ShuntingYard()
+bool VParser::ShuntingYard()
 {
 // we'll track parentheses level
 // it must never get negative and return to zero in the end
@@ -408,6 +334,15 @@ bool VFormula::ShuntingYard()
         else if (token.type == TokVar) 
             Command.push_back(MkCmd(CmdReadVar, token.addr)); // move to command queue
 
+        else if (token.type == TokWrVar) {
+            if (TargetVar.empty())
+                TargetVar = token.string;
+            else {
+                ErrorString = std::string("Assignment to '") + TargetVar + "' was not terminated with ';'";
+                return false;
+            }
+        }
+
         else if (token.type == TokFunc) {
             token.args = FuncArgs[token.addr]; // fill correct number of args (should be done in tokenizer?)
             OpStack.push(token); // push to Op stack
@@ -423,7 +358,9 @@ bool VFormula::ShuntingYard()
             while (!OpStack.empty()) {
                 Token op2 = OpStack.top();
                 // <=  assuming all operators are left-associative
-                if ((op2.type == TokOper && OperRank[op2.addr] <= rank) || op2.type == TokUnary) {
+                // unary minus has highest precedence except when followed by ^
+                if ((op2.type == TokOper && OperRank[op2.addr] <= rank) 
+                    || (op2.type == TokUnary && token.string.compare("^") != 0)) {
                     Command.push_back(MkCmd(CmdOper, op2.addr));
                     OpStack.pop();
                 } else {
@@ -474,6 +411,24 @@ bool VFormula::ShuntingYard()
                 OpStack.push(Token(TokOpen, "("));    
         }
 
+        else if (token.type == TokEndSub) { // end of a subroutine
+            // empty operation stack
+            while (!OpStack.empty()) {
+                Command.push_back(MkCmd(CmdOper, OpStack.top().addr));
+                OpStack.pop();
+            }
+
+            size_t addr;
+            if (FindSymbol(VarName, TargetVar, &addr)) {
+                Command.push_back(MkCmd(CmdWriteVar, addr));
+                TargetVar.clear();
+            } else {
+                ErrorString = TargetVar.empty() ? std::string("Extra ';'") :
+                                                  std::string("Can not write: unknown variable " + TargetVar);
+                return false;                 
+            }
+        }
+
         else if (token.type == TokEnd) {
             if (par_level != 0) {
                 ErrorString = std::string("Unbalanced ") + std::string(par_level, '(');
@@ -492,7 +447,7 @@ bool VFormula::ShuntingYard()
     return true;
 }
 
-bool VFormula::CheckSyntax(Token token)
+bool VParser::CheckSyntax(Token token)
 {
     TokenType cur = token.type;
     TokenType last = LastToken.type;
@@ -513,7 +468,7 @@ bool VFormula::CheckSyntax(Token token)
     return true;
 }
 
-bool VFormula::FindSymbol(std::vector <std::string> &namevec, std::string symbol, size_t *addr)
+bool VParser::FindSymbol(std::vector <std::string> &namevec, std::string symbol, size_t *addr)
 {
     std::vector <std::string> :: iterator itr;
 
@@ -525,69 +480,100 @@ bool VFormula::FindSymbol(std::vector <std::string> &namevec, std::string symbol
     return true;
 }
 
-size_t VFormula::AddOperation(std::string name, FuncPtr ptr, std::string mnem, int rank, int args)
+size_t VParser::AddOperation(std::string name, std::string mnem, int rank, int args)
 {
     OperName.push_back(name);
     OperMnem.push_back(mnem);
     OperRank.push_back(rank);
     OperArgs.push_back(args);
-    Oper.push_back(ptr);
-    return Oper.size()-1;
+    return OperName.size()-1;
 }
 
-size_t VFormula::AddFunction(std::string name, FuncPtr ptr, std::string mnem, int args) 
+size_t VParser::AddFunction(std::string name, std::string mnem, int args) 
 {
     FuncName.push_back(name);
     FuncMnem.push_back(mnem);
     FuncArgs.push_back(args);
-    Func.push_back(ptr);
-    return Func.size()-1;
+    return FuncName.size()-1;
 }
 
-size_t VFormula::AddConstant(std::string name, double val)
+// two types of constants:
+//  * named - these are reusable; they either come preset like pi or created by user via AddConstant()
+//  * auto - reset each time the parser runs; used to store the numbers from the formula
+//  ConstName.size() gives the address of the first auto constant
+bool VParser::AddConstant(std::string name, double val)
 {
     size_t addr;
-    if (name.size() == 0) { // if automatically generated (empty name)
-        std::vector <double> :: iterator itr = std::find(Const.begin(), Const.end(), val);
-        if (itr != Const.end()) // if a constant with the same value already exists
-            return itr-Const.begin(); // use it
-    } else if (FindSymbol(ConstName, name, &addr)) { // if the constant with this name already exists - update it
-        Var[addr] = val;
-        return addr;
+    // make sure there is no name clash with a variable or a function
+    if (FindSymbol(VarName, name, &addr)) {
+        ErrorString = "Can not add constant '" + name + "': variable with this name already exists";
+        return false; 
+    } else if (FindSymbol(FuncName, name, &addr)) {
+        ErrorString = "Can not add constant '" + name + "': function with this name already exists";
+        return false;
+    }
+
+    if (FindSymbol(ConstName, name, &addr)) { // if the constant with this name already exists - update it
+        Const[addr] = val;
+        return true;
     }
 // otherwise create a new one      
     ConstName.push_back(name);
     Const.push_back(val);
+    return true;
+}
+
+size_t VParser::AddAutoConstant(double val)
+{
+
+    std::vector <double> :: iterator itr = std::find(Const.begin() + ConstName.size(), Const.end(), val);
+    if (itr != Const.end()) // if an auto constant with the same value already exists
+        return itr-Const.begin(); // use it
+
+// otherwise create a new one      
+    Const.push_back(val);
     return Const.size()-1;
 }
 
-size_t VFormula::AddVariable(std::string name, double val) 
+// remove all automatically generated (i.e. nameless) constants
+void VParser::PruneConstants()
 {
-// if the variable with this name already exists - update it   
-    size_t addr;
-    if (FindSymbol(VarName, name, &addr)) { 
-        Var[addr] = val;
-        return addr;
-    }
-// otherwise create a new one
-    VarName.push_back(name);
-    Var.push_back(val);
-    return Var.size()-1;
+    Const.resize(ConstName.size());
 }
 
-double VFormula::GetConstant(std::string name)
+bool VParser::AddVariable(std::string name) 
+{
+    size_t addr;
+    // make sure there is no name clash with a constant or a function
+    if (FindSymbol(ConstName, name, &addr)) {
+        ErrorString = "Can not add variable '" + name + "': variable with this name already exists";
+        return false; 
+    } else if (FindSymbol(FuncName, name, &addr)) {
+        ErrorString = "Can not add constant '" + name + "': function with this name already exists";
+        return false;
+    }
+
+// add if it's not there already 
+    if (!FindSymbol(VarName, name, &addr))
+        VarName.push_back(name);
+
+    return true;
+}
+
+double VParser::GetConstant(std::string name)
 {
     size_t addr;
     return FindSymbol(ConstName, name, &addr) ? Const[addr] : nan("");
 }
 
-double VFormula::GetVariable(std::string name)
+double VParser::GetConstant(size_t addr)
 {
-    size_t addr;
-    return FindSymbol(VarName, name, &addr) ? Var[addr] : nan("");    
+    if (addr<0 || addr>=Const.size())
+        return nan("");
+    return Const[addr];    
 }
 
-bool VFormula::SetConstant(std::string name, double val)
+bool VParser::SetConstant(std::string name, double val)
 {
     size_t addr;
     bool status = FindSymbol(ConstName, name, &addr);
@@ -596,11 +582,13 @@ bool VFormula::SetConstant(std::string name, double val)
     return status;     
 }
 
-bool VFormula::SetVariable(std::string name, double val)
+bool VParser::SetConstant(size_t addr, double val)
 {
-    size_t addr;
-    bool status = FindSymbol(VarName, name, &addr);
-    if (status)
-        Var[addr] = val;
-    return status;    
+    if (addr<0 || addr>=Const.size())
+        return false;
+    Const[addr] = val;
+    return true;     
 }
+
+
+
